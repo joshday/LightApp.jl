@@ -27,23 +27,8 @@ function get_script(app::App)
     println(io, """
     import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
-    class App extends Component{
-        async function roundTrip(component_id, value) {
-            const state = JSON.parse(JSON.stringify(this.state));
-            state.__COMPONENT_ID__ = component_id
-            state.__COMPONENT_VALUE__ = value
-            const response = await fetch($JSON_ENDPOINT), {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(state)
-            }
-            this.setState(response.json())
-        }
-    """)
-
-
-
-    p("""
+    class App extends Component {
+    $round_trip
         render() {
             return html`<p>Hi!</p>`
         }
@@ -54,6 +39,20 @@ function get_script(app::App)
 
     return HTML(String(take!(io)))
 end
+
+round_trip = """
+    roundTrip (component_id, value) {
+        const state = JSON.parse(JSON.stringify(this.state));
+        state.__COMPONENT_ID__ = component_id
+        state.__COMPONENT_VALUE__ = value
+        fetch("$JSON_ENDPOINT"), {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(state)
+        }
+        .then(response => this.setState(response.json()))
+    };
+"""
 
 #-----------------------------------------------------------------------------# Node
 function Hyperscript.Node(o::App)
@@ -99,7 +98,7 @@ function load_asset(req)
 end
 
 # include("template.jl")
-# include("components.jl")
+include("components.jl")
 
 # #-----------------------------------------------------------------------------# Render
 # struct Render

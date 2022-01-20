@@ -1,10 +1,12 @@
 using LightApp
+using LightApp: Button, State
 using PlotlyLight
+using EasyConfig
+using Hyperscript
 
+app = LightApp.App()
 
-app = App()
-
-app.init_state = Config(x = [1,2,3], y = rand(3))
+app.state = Config(x = [1,2,3], y = rand(3))
 
 app.layout = m("div",
     m("h1", "Hello World!"),

@@ -23,7 +23,7 @@ function js(o::Button)
         return (
             <button type="button"
 
-                className={`inline-flex items-center m-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${c} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+                className={`inline-flex items-center m-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm \${c} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
 
                 onClick={e => rountTrip($(o.id), e.target.value)}
             >
