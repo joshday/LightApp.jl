@@ -1,44 +1,35 @@
-abstract type StateComponent end
-
-
-#-----------------------------------------------------------------------------# Dropdown
-Base.@kwdef struct Dropdown <: StateComponent
-    statekey::String
-    options::Vector{String}
-    multiple::Bool = false
-    label::String
-    default = first(options)
+#-----------------------------------------------------------------------------# State
+struct State
+    x
 end
+Base.show(io::IO, ::MIME"text/html", st::State) = print(io, "{this.state.$(st.x)}")
 
-function node(o::Dropdown)
-    id = randstring(10)
-    children = Node[]
-    !isempty(o.label) && push!(children, m("label", var"for"=id, o.label))
-    options = Node[]
-    push!(children, m("select", name=id, id=id, options...))
-    m("div", children...)
+#-----------------------------------------------------------------------------# Component
+abstract type Component end
+
+#-----------------------------------------------------------------------------# Button
+struct Button <: Component
+    server_function
+    children
+    active::Bool
+    id::String
 end
+Button(f, children; active::Bool=false, id=randstring(10)) = Button(f, children, active ,id)
 
-<label for="cars">Choose a car:</label>
+function js(o::Button)
+    """
+    function Button({children, active}) {
+        const c = active ? "text-white bg-indigo-600 hover:bg-indigo-700" : "text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+        return (
+            <button type="button"
 
-<select name="cars" id="cars">
-  <option value="volvo">Volvo</option>
-  <option value="saab">Saab</option>
-  <option value="mercedes">Mercedes</option>
-  <option value="audi">Audi</option>
-</select>
+                className={`inline-flex items-center m-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${c} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
 
-
-# function Base.show(io::IO, ::MIME"text/html", o::Dropdown)
-#     id = randstring(10)
-#     !isempty(o.label) && print(io, "<label for=\"$id\">$(o.label)</label>")
-#     print(io, )
-
-
-# <select name="cars" id="cars">
-#   <option value="volvo">Volvo</option>
-#   <option value="saab">Saab</option>
-#   <option value="mercedes">Mercedes</option>
-#   <option value="audi">Audi</option>
-# </select>
-# end
+                onClick={e => rountTrip($(o.id), e.target.value)}
+            >
+                {children}
+            </button>
+        )
+      }
+    """
+end

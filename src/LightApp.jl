@@ -3,35 +3,20 @@ module LightApp
 using JSON3
 using HTTP
 using Hyperscript: Hyperscript, m, Node, Pretty
+using EasyConfig
 
 using Sockets
 using Random
 
+JSON_ENDPOINT = "/api/json"
+
+
 #-----------------------------------------------------------------------------# App
-# - All Nodes get their own JS component
-# - StateComponents get JS components that go inside of App (because they need this.setState)
-
-
-Base.@kwdef struct App
+Base.@kwdef mutable struct App
     title::String = "LightApp.jl Application"
     layout::Node = m("h1", HTML("No Layout!"))
+    state::Config = Config()
 end
-
-
-
-# function prop_components(node::Node)
-#     out = []
-#     children = getfield(node, :children)
-#     node_children = filter(x -> x isa Node, children)
-#     other_children = filter(x -> !(x isa Node), children)
-#     for child in node_children
-#         append!(out, prop_components(c))
-#     end
-#     for child in other_children
-#         append!(out, prop_components(c))
-#     end
-#     return out
-# end
 
 
 #-----------------------------------------------------------------------------# get_script
@@ -39,21 +24,31 @@ function get_script(app::App)
     io = IOBuffer()
     println(io)
     p(args...) = println(io, "      ", args...)
-    p("import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';")
+    println(io, """
+    import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
-    # components = []
-    # prop_components!(components, app.layout)
+    class App extends Component{
+        async function roundTrip(component_id, value) {
+            const state = JSON.parse(JSON.stringify(this.state));
+            state.__COMPONENT_ID__ = component_id
+            state.__COMPONENT_VALUE__ = value
+            const response = await fetch($JSON_ENDPOINT), {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(state)
+            }
+            this.setState(response.json())
+        }
+    """)
 
-    p("class App extends Component {")
-    p("  render() {")
-    p("    return html`");
 
 
-    show(io, MIME"text/html"(), app.layout);
-
-    println(io, "`");
-    p("  }")
-    p("}")
+    p("""
+        render() {
+            return html`<p>Hi!</p>`
+        }
+    }
+    """)
     p("document.body.innerHTML = \"\";")
     p("render(html`<\${App} />`, document.body);")
 
@@ -71,8 +66,17 @@ function Hyperscript.Node(o::App)
             m("script", src="/assets/preact.min.js"),
             m("script", type="module", get_script(o))
         ),
-        m("body", "Loading...")
+        m("body", "Loading...")  # Gets overwritten by script
     )
+end
+
+#-----------------------------------------------------------------------------# process_json
+function process_json(app, req)
+    json = JSON3.read(req.body, Config)
+    id = json.__COMPONENT_ID__
+    val = josn.__COMPONENT_VALUE__
+    merge!(json, app.components[id](json, val))
+    return HTTP.Response(200, JSON3.write(json))
 end
 
 #-----------------------------------------------------------------------------# serve
@@ -85,7 +89,7 @@ function serve(app::App, port=8080)
     ROUTER = HTTP.Router()
     HTTP.@register(ROUTER, "GET", "/", req -> HTTP.Response(200, index_html))
     HTTP.@register(ROUTER, "GET", "/assets/*", load_asset)
-    # HTTP.@register(ROUTER, "GET", "/julia_api", req -> process_request(app, req))
+    HTTP.@register(ROUTER, "GET", JSON_ENDPOINT, req -> process_json(app, req))
     HTTP.serve(ROUTER, ip"127.0.0.1", port)
 end
 
