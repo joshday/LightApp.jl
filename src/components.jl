@@ -4,7 +4,7 @@ abstract type Component end
 
 #-----------------------------------------------------------------------------# Button
 struct Button <: Component
-    server_function
+    server_function  # (state,val) -> mutated state
     children
     active::Bool
     id::String

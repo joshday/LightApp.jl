@@ -27,47 +27,63 @@ Base.@kwdef mutable struct App
     title::String = "LightApp.jl Application"
     layout::Node = m("h1", HTML("No Layout!"))
     state::Config = Config()
+    components::Config = get_components(layout)# component_id => component
+end
+
+function get_components(node::Node)
+    c = Config()
+    for child in filter(x -> x isa Component, getfield(node, :children))
+        c[child.id] = child
+    end
+    return c
 end
 
 #-----------------------------------------------------------------------------# componentize
+# TODO: split into creating components and calling components
 function componentize(node::Node)
+    tag = getfield(node, :tag)
+    attrs = getfield(node, :attrs)
+    children = getfield(node, :children)
+    f = "C$randstring(10)"
+
     repr("text/html", node)
 end
+
 
 
 #-----------------------------------------------------------------------------# get_script
 function indexjs(app::App)
     """
-    import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
+        import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
-    class App extends Component {
-        state = $(JSON3.write(app.state))
+        class App extends Component {
+            state = $(JSON3.write(app.state))
 
-        async action (component_id, value) {
-            const state = JSON.parse(JSON.stringify(this.state)) // deep copy
-            state.__COMPONENT_ID__ = component_id;
-            state.__COMPONENT_VALUE__ = value;
-            const res = await fetch("$JSON_ENDPOINT", {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(state)
-            });
-            this.setState(res.json(), () => console.log(`State Update: \${JSON.stringify(this.state)}`))
-        };
+            async action (component_id, value) {
+                const state = JSON.parse(JSON.stringify(this.state)) // deep copy
+                state.__COMPONENT_ID__ = component_id;
+                state.__COMPONENT_VALUE__ = value;
+                const res = await fetch("$JSON_ENDPOINT", {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(state)
+                });
+                this.setState(res.json(), () => console.log(`State Update: \${JSON.stringify(this.state)}`))
+            };
 
-        componentDidMount() {
-            console.log(`Initial state: \${JSON.stringify(this.state)}`)
-            this.action("__DONT_TOUCH__", "")
-        };
+            componentDidMount() {
+                console.log(`Initial state: \${JSON.stringify(this.state)}`)
+                this.action("__DONT_TOUCH__", "")
+            };
 
-        render() {
-            return html`$(componentize(app.layout))`
+            render() {
+                return html`$(componentize(app.layout))`
+            }
         }
-    }
 
-    document.body.innerHTML = \"\"; // Remove "Loading..." from page.
+        document.body.innerHTML = \"\"; // Remove "Loading..." from page.
 
-    render(html`<\${App} />`, document.body);
+        render(html`<\${App} />`, document.body);
     """
 end
 
@@ -90,12 +106,17 @@ end
 #-----------------------------------------------------------------------------# process_json
 function process_json(app::App, req::HTTP.Request)
     json = JSON3.read(req.body, Config)
-    @info json
+
+    # debugging
+    io = IOBuffer()
+    JSON3.pretty(io, json)
+    printstyled("process_json called with data:\n", color=:light_cyan)
+    printstyled(String(take!(io)); color=:light_green)
+    println(); println()
+
     id = json.__COMPONENT_ID__
     val = json.__COMPONENT_VALUE__
-    if id != "__DONT_TOUCH__"
-        merge!(json, app.components[id](json, val))
-    end
+    id != "__DONT_TOUCH__" && app.components[id](json, val)
     return HTTP.Response(200, JSON3.write(json))
 end
 
