@@ -41,10 +41,10 @@ end
 #-----------------------------------------------------------------------------# componentize
 # TODO: split into creating components and calling components
 function componentize(node::Node)
-    tag = getfield(node, :tag)
-    attrs = getfield(node, :attrs)
-    children = getfield(node, :children)
-    f = "C$randstring(10)"
+    # tag = getfield(node, :tag)
+    # attrs = getfield(node, :attrs)
+    # children = getfield(node, :children)
+    # f = "C$randstring(10)"
 
     repr("text/html", node)
 end
