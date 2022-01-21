@@ -7,7 +7,7 @@ app.state.x = 1
 app.layout = h.div(
     h.h1("Hello World!")."text-xl"."text-center"."text-gray-800"."mt-8",
 
-    HTML("<verbatim>This is copied verbatim into the app!  Cool!</verbatim>"),
+    # "Cool",  # TODO: figure out why this won't work
 
     h.p("This is my app!")."text-gray-500"."text-center"."my-16",
 

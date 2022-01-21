@@ -33,14 +33,14 @@ Base.@kwdef mutable struct App
     title::String = "LightApp.jl Application"
     layout::Node = h.h1("No ", h.code("layout"), " has been provided")."text-xl"."text-red-600"
     state::Config = Config()
-    components::Config = get_components(layout)# component_id => component
+    components::Config = get_components(layout)
 end
 
 function get_components(node::Node)
     c = Config()
-    for child in filter(x -> x isa Component, getfield(node, :children))
-        c[child.id] = child
-    end
+    # for child in filter(x -> x isa Component, getfield(node, :children))
+    #     c[child.id] = child
+    # end
     return c
 end
 
