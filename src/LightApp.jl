@@ -4,11 +4,22 @@ using JSON3
 using HTTP
 using Hyperscript: Hyperscript, m, Node, Pretty
 using EasyConfig
+using StructTypes
 
 using Sockets
 using Random
 
 JSON_ENDPOINT = "/api/json"
+
+export App, State
+
+#-----------------------------------------------------------------------------# State
+struct State
+    x
+end
+Base.show(io::IO, st::State) = print(io, "\${this.state.$(st.x)}")
+Base.show(io::IO, ::MIME"text/html", st::State) = show(io, st)
+StructTypes.StructType(::Type{State}) = StructTypes.StringType()
 
 
 #-----------------------------------------------------------------------------# App
@@ -18,41 +29,48 @@ Base.@kwdef mutable struct App
     state::Config = Config()
 end
 
+#-----------------------------------------------------------------------------# componentize
+function componentize(node::Node)
+    repr("text/html", node)
+end
+
 
 #-----------------------------------------------------------------------------# get_script
-function get_script(app::App)
-    io = IOBuffer()
-    println(io)
-    p(args...) = println(io, "      ", args...)
-    println(io, """
+function indexjs(app::App)
+    """
     import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
     class App extends Component {
-    $round_trip
+        state = $(JSON3.write(app.state))
+
+        async action (component_id, value) {
+            const state = JSON.parse(JSON.stringify(this.state)) // deep copy
+            state.__COMPONENT_ID__ = component_id;
+            state.__COMPONENT_VALUE__ = value;
+            const res = await fetch("$JSON_ENDPOINT", {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(state)
+            });
+            this.setState(res.json(), () => console.log(`State Update: \${JSON.stringify(this.state)}`))
+        };
+
+        componentDidMount() {
+            console.log(`Initial state: \${JSON.stringify(this.state)}`)
+            this.action("__DONT_TOUCH__", "")
+        };
+
         render() {
-            return html`<p>Hi!</p>`
+            return html`$(componentize(app.layout))`
         }
     }
-    """)
-    p("document.body.innerHTML = \"\";")
-    p("render(html`<\${App} />`, document.body);")
 
-    return HTML(String(take!(io)))
+    document.body.innerHTML = \"\"; // Remove "Loading..." from page.
+
+    render(html`<\${App} />`, document.body);
+    """
 end
 
-round_trip = """
-    roundTrip (component_id, value) {
-        const state = JSON.parse(JSON.stringify(this.state));
-        state.__COMPONENT_ID__ = component_id
-        state.__COMPONENT_VALUE__ = value
-        fetch("$JSON_ENDPOINT"), {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(state)
-        }
-        .then(response => this.setState(response.json()))
-    };
-"""
 
 #-----------------------------------------------------------------------------# Node
 function Hyperscript.Node(o::App)
@@ -63,23 +81,26 @@ function Hyperscript.Node(o::App)
             m("meta", charset="utf-8"),
             m("script", src="/assets/tailwindcss.js"),
             m("script", src="/assets/preact.min.js"),
-            m("script", type="module", get_script(o))
+            m(Hyperscript.NOESCAPE_HTMLSVG_CONTEXT, "script", type="module", indexjs(o))
         ),
         m("body", "Loading...")  # Gets overwritten by script
     )
 end
 
 #-----------------------------------------------------------------------------# process_json
-function process_json(app, req)
+function process_json(app::App, req::HTTP.Request)
     json = JSON3.read(req.body, Config)
+    @info json
     id = json.__COMPONENT_ID__
-    val = josn.__COMPONENT_VALUE__
-    merge!(json, app.components[id](json, val))
+    val = json.__COMPONENT_VALUE__
+    if id != "__DONT_TOUCH__"
+        merge!(json, app.components[id](json, val))
+    end
     return HTTP.Response(200, JSON3.write(json))
 end
 
 #-----------------------------------------------------------------------------# serve
-function serve(app::App, port=8080)
+function serve(app::App, host=Sockets.localhost, port=8080)
     io = IOBuffer()
     println(io, "<!doctype html>")
     show(io, MIME"text/html"(), Pretty(Node(app)))
@@ -88,8 +109,10 @@ function serve(app::App, port=8080)
     ROUTER = HTTP.Router()
     HTTP.@register(ROUTER, "GET", "/", req -> HTTP.Response(200, index_html))
     HTTP.@register(ROUTER, "GET", "/assets/*", load_asset)
-    HTTP.@register(ROUTER, "GET", JSON_ENDPOINT, req -> process_json(app, req))
-    HTTP.serve(ROUTER, ip"127.0.0.1", port)
+    HTTP.@register(ROUTER, "POST", JSON_ENDPOINT, req -> process_json(app, req))
+
+    @info "Running server on $host:$port..."
+    HTTP.serve(ROUTER, host, port)
 end
 
 function load_asset(req)
@@ -97,46 +120,6 @@ function load_asset(req)
     HTTP.Response(200, read(joinpath(@__DIR__, "..", "deps", file), String))
 end
 
-# include("template.jl")
 include("components.jl")
-
-# #-----------------------------------------------------------------------------# Render
-# struct Render
-#     statekey::String
-# end
-# Base.show(io::IO, o::Render) = print(io, "{this.state.$(o.statekey)}")
-# Base.show(io::IO, ::MIME"text/html", o::Render) = show(io, o)
-
-# #-----------------------------------------------------------------------------# App
-# mutable struct App
-#     init_state::JSON3.Object
-#     title::String
-#     layout
-#     reducers
-
-#     function App(; init_state=Dict(), title="LightApp.jl Application", layout=m("h1", "No Layout Provided."))
-#         io = IOBuffer()
-#         show(io, MIME"text/html"(), layout)
-#         new(JSON3.write(init_state), string(title), String(take!(io)))
-#     end
-# end
-
-
-# function home(app::App)
-#     io = IOBuffer()
-#     render(io, TEMPLATE, app)
-#     String(take!(io))
-# end
-
-# function process_request(app::App, req::HTTP.Request)
-#     json = JSON3.read(req.body)
-#     action = json.__ACTION__
-#     haskey(app.reducers, json.__action__) || return HTTP.Response(400, "App does not have action: $action.")
-# end
-
-# #-----------------------------------------------------------------------------# serve
-
-
-
 
 end

@@ -9,8 +9,10 @@ EasyConfig = "acab07b0-f158-46d4-8913-50acef6d41fe"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 Hyperscript = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+PropertyUtils = "7eaf9d98-b424-4a14-afcb-82e7a14ea1c6"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
+StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [compat]
 HTTP = "0.9"

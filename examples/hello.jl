@@ -1,23 +1,29 @@
 using LightApp
-using LightApp: Button, State
-using PlotlyLight
-using EasyConfig
-using Hyperscript
+using Hyperscript: Hyperscript
 
-app = LightApp.App()
+m(args...; kw...) = Hyperscript.m(Hyperscript.NOESCAPE_HTMLSVG_CONTEXT, args...; kw...)
 
-app.state = Config(x = [1,2,3], y = rand(3))
+app = App()
+
+app.state.x = 1
 
 app.layout = m("div",
     m("h1", "Hello World!"),
-
-    Button("Click me to make new plot data") do (state, btnval)
-        res.plot_x = rand(10)
-        res.plot_y = rand(10)
-        res
-    end,
-
-    Plot(Config(x=State("x"), y=State("y")))
+    m("p", "This is a my app!"),
+    m("p", "It has state: ", State("x"))
 )
+
+# This writes out as :
+# const C1 = props => <div>{props.children}</div>
+# const C2 = () => <p>{This is my app!}</p>
+# const C3 = () => <p>It has state: {this.state.x}</p>
+#
+# render() {
+#   return html`
+#     <${C1}>
+#     <//>
+#   `
+# }
+
 
 LightApp.serve(app)
