@@ -2,7 +2,6 @@ module LightApp
 
 using JSON3
 using HTTP
-using Hyperscript: Hyperscript, m, Node, Pretty
 using EasyConfig
 using StructTypes
 
@@ -13,19 +12,26 @@ JSON_ENDPOINT = "/api/json"
 
 export App, State
 
+include("nodes.jl")
+
 #-----------------------------------------------------------------------------# State
 struct State
     x
 end
 Base.show(io::IO, st::State) = print(io, "\${this.state.$(st.x)}")
 Base.show(io::IO, ::MIME"text/html", st::State) = show(io, st)
-StructTypes.StructType(::Type{State}) = StructTypes.StringType()
 
+#-----------------------------------------------------------------------------# Component
+struct Component
+    f::Function  # (state, value) → new_state
+    node::Node
+    id::String  # use same `id` in html as well as in Julia
+end
 
 #-----------------------------------------------------------------------------# App
 Base.@kwdef mutable struct App
     title::String = "LightApp.jl Application"
-    layout::Node = m("h1", HTML("No Layout!"))
+    layout::Node = h.h1("No ", h.code("layout"), " has been provided")."text-xl"."text-red-600"
     state::Config = Config()
     components::Config = get_components(layout)# component_id => component
 end
@@ -38,21 +44,11 @@ function get_components(node::Node)
     return c
 end
 
-#-----------------------------------------------------------------------------# componentize
-# TODO: split into creating components and calling components
-function componentize(node::Node)
-    # tag = getfield(node, :tag)
-    # attrs = getfield(node, :attrs)
-    # children = getfield(node, :children)
-    # f = "C$randstring(10)"
-
-    repr("text/html", node)
-end
-
-
-
 #-----------------------------------------------------------------------------# get_script
 function indexjs(app::App)
+    io = IOBuffer()
+    show(io, MIME"text/html"(), app.layout)
+    layout = String(take!(io))
     """
         import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
@@ -77,7 +73,7 @@ function indexjs(app::App)
             };
 
             render() {
-                return html`$(componentize(app.layout))`
+                return html`$layout`
             }
         }
 
@@ -89,17 +85,17 @@ end
 
 
 #-----------------------------------------------------------------------------# Node
-function Hyperscript.Node(o::App)
-    m("html", lang="en",
-        m("head",
-            m("title", o.title),
-            m("meta", name="viewport", content="width=device-width, initial-scale=1.0"),
-            m("meta", charset="utf-8"),
-            m("script", src="/assets/tailwindcss.js"),
-            m("script", src="/assets/preact.min.js"),
-            m(Hyperscript.NOESCAPE_HTMLSVG_CONTEXT, "script", type="module", indexjs(o))
+function Node(o::App)
+    h.html(lang="en",
+        h.head(
+            h.title(o.title),
+            h.meta(name="viewport", content="width=device-width, initial-scale=1.0"),
+            h.meta(charset="utf-8"),
+            h.script(src="/assets/tailwindcss.js"),
+            h.script(src="/assets/preact.min.js"),
+            h.script(type="module", indexjs(o))
         ),
-        m("body", "Loading...")  # Gets overwritten by script
+        h.body("Loading...")  # Gets overwritten by script
     )
 end
 
@@ -124,7 +120,7 @@ end
 function serve(app::App, host=Sockets.localhost, port=8080)
     io = IOBuffer()
     println(io, "<!doctype html>")
-    show(io, MIME"text/html"(), Pretty(Node(app)))
+    show(io, MIME"text/html"(), Node(app))
     index_html = String(take!(io))
 
     ROUTER = HTTP.Router()
@@ -141,6 +137,5 @@ function load_asset(req)
     HTTP.Response(200, read(joinpath(@__DIR__, "..", "deps", file), String))
 end
 
-include("components.jl")
 
 end

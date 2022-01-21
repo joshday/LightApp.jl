@@ -1,16 +1,17 @@
-using LightApp
-using Hyperscript: Hyperscript
-
-m(args...; kw...) = Hyperscript.m(Hyperscript.NOESCAPE_HTMLSVG_CONTEXT, args...; kw...)
+using LightApp: App, h, serve
 
 app = App()
 
 app.state.x = 1
 
-app.layout = m("div",
-    m("h1", "Hello World!"),
-    m("p", "This is my app!"),
-    m("p", "It has state: ", State("x")),
+app.layout = h.div(
+    h.h1("Hello World!")."text-xl"."text-center"."text-gray-800"."mt-8",
+
+    HTML("<verbatim>This is copied verbatim into the app!  Cool!</verbatim>"),
+
+    h.p("This is my app!")."text-gray-500"."text-center"."my-16",
+
+    h.p("It has state: ", State("x"))."text-gray-500"."text-center"."text-2xl",
 )
 
-LightApp.serve(app)
+serve(app)

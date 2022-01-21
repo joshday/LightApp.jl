@@ -1,6 +1,28 @@
+#-----------------------------------------------------------------------------# Handler
+# How we set things like: onClick={e => handle(e.target.value)}
+struct Handler
+    key::String
+    function_string::String
+end
+function Base.show(io::IO, ::MIME"text/html", h::Handler)
+
+end
+
+
+
 
 #-----------------------------------------------------------------------------# Component
-abstract type Component end
+struct Component
+    f::Function  # (state, value) → new_state
+    node::Hyperscript.Node
+    id::String  # use same `id` in html as well as in Julia
+end
+
+function button(f, args...; kw...)
+    id = randstring(20)
+    Component(f, m("button", type="button", args...; id, kw...), id)
+end
+
 
 #-----------------------------------------------------------------------------# Button
 struct Button <: Component
