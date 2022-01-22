@@ -13,36 +13,39 @@ JSON_ENDPOINT = "/api/json"
 export App, State
 
 include("nodes.jl")
+include("components.jl")
 
 #-----------------------------------------------------------------------------# State
 struct State
-    x
+    x::String
 end
 Base.show(io::IO, st::State) = print(io, "\${this.state.$(st.x)}")
 Base.show(io::IO, ::MIME"text/html", st::State) = show(io, st)
-
-#-----------------------------------------------------------------------------# Component
-struct Component
-    f::Function  # (state, value) → new_state
-    node::Node
-    id::String  # use same `id` in html as well as in Julia
-end
 
 #-----------------------------------------------------------------------------# App
 Base.@kwdef mutable struct App
     title::String = "LightApp.jl Application"
     layout::Node = h.h1("No ", h.code("layout"), " has been provided")."text-xl"."text-red-600"
     state::Config = Config()
-    components::Config = get_components(layout)
+    components::Config = Config()
 end
+
+function Base.setproperty!(app::App, name::Symbol, x)
+    setfield!(app, name ,x)
+    if name === :layout
+        app.components = get_components(app.layout)
+    end
+end
+
 
 function get_components(node::Node)
     c = Config()
-    # for child in filter(x -> x isa Component, getfield(node, :children))
-    #     c[child.id] = child
-    # end
+    for child in filter(x -> x isa Component, getfield(node, :children))
+        c[child.id] = child
+    end
     return c
 end
+
 
 #-----------------------------------------------------------------------------# get_script
 function indexjs(app::App)
@@ -53,29 +56,33 @@ function indexjs(app::App)
         import { html, Component, render } from 'https://unpkg.com/htm/preact/index.mjs?module';
 
         class App extends Component {
-            state = $(JSON3.write(app.state))
+            action (component_id, value, keys=null) {
+                const state = JSON.parse(JSON.stringify(this.state));  // TODO: only use provided keys
+                console.log(`Sending state: \${JSON.stringify(state)}.`)
 
-            async action (component_id, value, substate=null) {
-                const state = substate ?
-                JSON.parse(JSON.stringify(substate)) :
-                    JSON.parse(JSON.stringify(this.state))
                 state.__COMPONENT_ID__ = component_id;
                 state.__COMPONENT_VALUE__ = value;
-                const res = await fetch("$JSON_ENDPOINT", {
+                fetch("$JSON_ENDPOINT", {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(state)
-                });
-                this.setState(res.json(), () => console.log(`State Update: \${JSON.stringify(this.state)}`))
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`From Julia: \${JSON.stringify(data)}`)
+                    this.setState(s => ({...s, ...data}))
+                })
+                .then(() => console.log(`State Update: \${JSON.stringify(this.state)}`))
             };
 
             componentDidMount() {
                 console.log(`Initial state: \${JSON.stringify(this.state)}`)
-                this.action("__DONT_TOUCH__", "")
+                this.action("__INITIALIZE_STATE__", null)
+                // this.setState($(JSON3.write(app.state)))
             };
 
             render() {
-                return html`$layout`
+                return html`$(app.layout)`
             }
         }
 
@@ -114,8 +121,16 @@ function process_json(app::App, req::HTTP.Request)
 
     id = json.__COMPONENT_ID__
     val = json.__COMPONENT_VALUE__
-    id != "__DONT_TOUCH__" && app.components[id](json, val)
-    return HTTP.Response(200, JSON3.write(json))
+    if id == "__INITIALIZE_STATE__"
+        @info "Intializing state..."
+        return HTTP.Response(200, ["Content-Type"=>"application/json"]; body=JSON3.write(app.state))
+    else
+        app.components[id].f(json, val)
+    end
+    delete!(json, :__COMPONENT_ID__)
+    delete!(json, :__COMPONENT_VALUE__)
+    @info "Returning:" JSON3.write(json)
+    return HTTP.Response(200,  ["Content-Type"=>"application/json"]; body=JSON3.write(json))
 end
 
 #-----------------------------------------------------------------------------# serve
