@@ -55,8 +55,10 @@ function indexjs(app::App)
         class App extends Component {
             state = $(JSON3.write(app.state))
 
-            async action (component_id, value) {
-                const state = JSON.parse(JSON.stringify(this.state)) // deep copy
+            async action (component_id, value, substate=null) {
+                const state = substate ?
+                JSON.parse(JSON.stringify(substate)) :
+                    JSON.parse(JSON.stringify(this.state))
                 state.__COMPONENT_ID__ = component_id;
                 state.__COMPONENT_VALUE__ = value;
                 const res = await fetch("$JSON_ENDPOINT", {

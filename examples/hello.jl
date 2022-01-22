@@ -1,4 +1,4 @@
-using LightApp: App, h, serve
+using LightApp: App, State, h, serve
 
 app = App()
 
@@ -6,8 +6,6 @@ app.state.x = 1
 
 app.layout = h.div(
     h.h1("Hello World!")."text-xl"."text-center"."text-gray-800"."mt-8",
-
-    # "Cool",  # TODO: figure out why this won't work
 
     h.p("This is my app!")."text-gray-500"."text-center"."my-16",
 
